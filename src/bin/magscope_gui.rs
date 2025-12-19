@@ -2,6 +2,7 @@
 
 use std::path::PathBuf;
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::thread;
 
 use eframe::egui;
@@ -10,13 +11,24 @@ use magscope_file_combiner::{
 };
 
 fn main() -> eframe::Result<()> {
-    let options = eframe::NativeOptions::default();
+    let mut options = eframe::NativeOptions::default();
+    if let Some(icon) = load_app_icon() {
+        options.viewport = options.viewport.with_icon(Arc::new(icon));
+    }
 
     eframe::run_native(
         "MagScope File Combiner",
         options,
         Box::new(|_cc| Box::new(CombinerApp::default())),
     )
+}
+
+fn load_app_icon() -> Option<egui::IconData> {
+    let png_bytes = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/logo.png"));
+    match eframe::icon_data::from_png_bytes(png_bytes) {
+        Ok(icon) => Some(icon),
+        Err(_) => None,
+    }
 }
 
 struct CombinerApp {

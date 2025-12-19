@@ -12,9 +12,9 @@ The user experience is a single-window app where the user drags a folder onto th
 - Text files with names that start with either:
   - `Bead Positions`
   - `Motor Positions`
-- Example filenames in the project root:
-  - `Bead Positions 2025-06-04 13-15-12.875.txt`
-  - `Motor Positions 2025-06-04 13-03-09.934.txt`
+- Example filenames in `samples/`:
+  - `samples/Bead Positions 2025-06-04 13-15-12.875.txt`
+  - `samples/Motor Positions 2025-06-04 13-03-09.934.txt`
 
 ### File format (observed)
 - Bead positions:
@@ -89,7 +89,7 @@ Write two combined files into the same folder:
 - Keep behavior deterministic (sorted filenames).
 
 ## Acceptance Criteria
-- Dragging the sample folder produces:
+- Dragging the `samples/` folder produces:
   - `Bead Positions Combined.txt` with one header and all bead lines.
   - `Motor Positions Combined.txt` with one header and all motor lines.
 - The UI reports counts and any header mismatches.
