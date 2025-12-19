@@ -5,8 +5,8 @@ test:
 
 build:
     cargo build --release
-
-dist: build
     New-Item -ItemType Directory -Force dist | Out-Null
     Copy-Item -Force target\release\MagMerge.exe dist\
     Copy-Item -Force target\release\magmerge_cli.exe dist\
+
+dist: build

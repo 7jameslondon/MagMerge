@@ -43,6 +43,7 @@ Users drag a folder onto the GUI; a CLI is also available for automation/testing
 - Tests: `cargo test`
 - CLI: `cargo run --bin magmerge_cli -- <folder>`
 - GUI: `cargo run --bin MagMerge`
+- `just build` runs a release build and copies binaries into `dist/`.
 
 ## Distribution
 - Release build: `cargo build --release`
