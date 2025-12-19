@@ -6,11 +6,17 @@ use std::path::{Path, PathBuf};
 pub mod cli;
 
 #[derive(Debug, Clone)]
-pub struct ProgressUpdate {
-    pub processed_files: usize,
-    pub total_files: usize,
-    pub file_type: FileType,
-    pub current_file: PathBuf,
+pub enum ProgressEvent {
+    Discovery {
+        bead_files: usize,
+        motor_files: usize,
+    },
+    Combine {
+        processed_files: usize,
+        total_files: usize,
+        file_type: FileType,
+        current_file: PathBuf,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,6 +65,16 @@ pub struct CombineReport {
 }
 
 pub fn discover_files(folder: &Path) -> io::Result<DiscoveredFiles> {
+    discover_files_with_progress(folder, |_, _| {})
+}
+
+pub fn discover_files_with_progress<F>(
+    folder: &Path,
+    mut on_discovery: F,
+) -> io::Result<DiscoveredFiles>
+where
+    F: FnMut(usize, usize),
+{
     let mut bead_files = Vec::new();
     let mut motor_files = Vec::new();
 
@@ -84,8 +100,14 @@ pub fn discover_files(folder: &Path) -> io::Result<DiscoveredFiles> {
         }
 
         match classify_name(&name) {
-            Some(FileType::Bead) => bead_files.push(path),
-            Some(FileType::Motor) => motor_files.push(path),
+            Some(FileType::Bead) => {
+                bead_files.push(path);
+                on_discovery(bead_files.len(), motor_files.len());
+            }
+            Some(FileType::Motor) => {
+                motor_files.push(path);
+                on_discovery(bead_files.len(), motor_files.len());
+            }
             None => {}
         }
     }
@@ -105,7 +127,7 @@ pub fn combine_folder(folder: &Path) -> CombineReport {
 
 pub fn combine_folder_with_progress<F>(folder: &Path, mut on_progress: F) -> CombineReport
 where
-    F: FnMut(ProgressUpdate),
+    F: FnMut(ProgressEvent),
 {
     let mut report = CombineReport {
         folder: folder.to_path_buf(),
@@ -116,7 +138,12 @@ where
         errors: Vec::new(),
     };
 
-    let discovered = match discover_files(folder) {
+    let discovered = match discover_files_with_progress(folder, |bead_files, motor_files| {
+        on_progress(ProgressEvent::Discovery {
+            bead_files,
+            motor_files,
+        });
+    }) {
         Ok(files) => files,
         Err(err) => {
             report.errors.push(Error {
@@ -133,7 +160,7 @@ where
     let mut processed_files = 0usize;
     let mut on_file_processed = |file_type: FileType, path: &PathBuf| {
         processed_files += 1;
-        on_progress(ProgressUpdate {
+        on_progress(ProgressEvent::Combine {
             processed_files,
             total_files,
             file_type,

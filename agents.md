@@ -57,6 +57,6 @@ Users drag a folder onto the GUI; a CLI is also available for automation/testing
 
 ## Notes for Changes
 - Keep file grouping based on filename prefix only.
-- Progress updates are file-level, not line-level.
+- Progress updates are file-level during combine and include discovery counts.
 - Output files are overwritten each run for the detected types.
 - Make frequent commits after any feature is changed or added.

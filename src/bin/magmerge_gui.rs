@@ -7,7 +7,7 @@ use std::thread;
 
 use eframe::egui;
 use magmerge::{
-    collect_errors, collect_warnings, combine_folder_with_progress, CombineReport, ProgressUpdate,
+    collect_errors, collect_warnings, combine_folder_with_progress, CombineReport, ProgressEvent,
 };
 
 fn main() -> eframe::Result<()> {
@@ -39,7 +39,10 @@ struct CombinerApp {
     processed_files: usize,
     total_files: usize,
     current_file: Option<String>,
-    progress_rx: Option<mpsc::Receiver<ProgressUpdate>>,
+    discovered_bead: usize,
+    discovered_motor: usize,
+    scanning: bool,
+    progress_rx: Option<mpsc::Receiver<ProgressEvent>>,
     result_rx: Option<mpsc::Receiver<CombineReport>>,
 }
 
@@ -53,6 +56,9 @@ impl Default for CombinerApp {
             processed_files: 0,
             total_files: 0,
             current_file: None,
+            discovered_bead: 0,
+            discovered_motor: 0,
+            scanning: false,
             progress_rx: None,
             result_rx: None,
         }
@@ -73,13 +79,16 @@ impl eframe::App for CombinerApp {
                     self.folder = Some(folder.clone());
                     self.report = None;
                     self.status_message = Some(format!(
-                        "Folder received. Starting combine: {}",
+                        "Folder received. Scanning: {}",
                         folder.display()
                     ));
                     self.processing = true;
                     self.processed_files = 0;
                     self.total_files = 0;
                     self.current_file = None;
+                    self.discovered_bead = 0;
+                    self.discovered_motor = 0;
+                    self.scanning = true;
 
                     let (progress_tx, progress_rx) = mpsc::channel();
                     let (result_tx, result_rx) = mpsc::channel();
@@ -99,22 +108,43 @@ impl eframe::App for CombinerApp {
 
         if let Some(rx) = &self.progress_rx {
             while let Ok(update) = rx.try_recv() {
-                self.processed_files = update.processed_files;
-                self.total_files = update.total_files;
-                let file_name = update
-                    .current_file
-                    .file_name()
-                    .map(|name| name.to_string_lossy().to_string())
-                    .unwrap_or_else(|| update.current_file.display().to_string());
-                let label = match update.file_type {
-                    magmerge::FileType::Bead => "Bead",
-                    magmerge::FileType::Motor => "Motor",
-                };
-                self.current_file = Some(format!("{label}: {file_name}"));
-                self.status_message = Some(format!(
-                    "Processing file {}/{}",
-                    self.processed_files, self.total_files
-                ));
+                match update {
+                    ProgressEvent::Discovery {
+                        bead_files,
+                        motor_files,
+                    } => {
+                        self.discovered_bead = bead_files;
+                        self.discovered_motor = motor_files;
+                        self.status_message = Some(format!(
+                            "Scanning files... found bead: {}, motor: {}",
+                            bead_files, motor_files
+                        ));
+                        self.scanning = true;
+                    }
+                    ProgressEvent::Combine {
+                        processed_files,
+                        total_files,
+                        file_type,
+                        current_file,
+                    } => {
+                        self.scanning = false;
+                        self.processed_files = processed_files;
+                        self.total_files = total_files;
+                        let file_name = current_file
+                            .file_name()
+                            .map(|name| name.to_string_lossy().to_string())
+                            .unwrap_or_else(|| current_file.display().to_string());
+                        let label = match file_type {
+                            magmerge::FileType::Bead => "Bead",
+                            magmerge::FileType::Motor => "Motor",
+                        };
+                        self.current_file = Some(format!("{label}: {file_name}"));
+                        self.status_message = Some(format!(
+                            "Processing file {}/{}",
+                            self.processed_files, self.total_files
+                        ));
+                    }
+                }
             }
         }
 
@@ -124,6 +154,7 @@ impl eframe::App for CombinerApp {
                 self.progress_rx = None;
                 self.result_rx = None;
                 self.current_file = None;
+                self.scanning = false;
                 if report.bead_files == 0 && report.motor_files == 0 {
                     self.status_message = Some("No matching files found.".to_string());
                 } else {
@@ -143,6 +174,13 @@ impl eframe::App for CombinerApp {
 
             if let Some(message) = &self.status_message {
                 ui.label(message);
+            }
+
+            if self.scanning {
+                ui.label(format!(
+                    "Found so far: Bead {}, Motor {}",
+                    self.discovered_bead, self.discovered_motor
+                ));
             }
 
             if self.processing && self.total_files > 0 {
