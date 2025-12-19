@@ -4,10 +4,7 @@ use eframe::egui;
 use magscope_file_combiner::{collect_errors, collect_warnings, combine_folder};
 
 fn main() -> eframe::Result<()> {
-    let options = eframe::NativeOptions {
-        drag_and_drop_support: true,
-        ..Default::default()
-    };
+    let options = eframe::NativeOptions::default();
 
     eframe::run_native(
         "MagScope File Combiner",
@@ -57,34 +54,32 @@ impl eframe::App for CombinerApp {
                     ui.label("No matching files found.");
                 }
 
-                match report.bead.as_ref() {
-                    Some(summary) => {
-                        let output = summary
-                            .output_path
-                            .as_ref()
-                            .map(|p| p.display().to_string())
-                            .unwrap_or_else(|| "(not created)".to_string());
-                        ui.label(format!(
-                            "Bead output: {} (lines: {})",
-                            output, summary.data_lines
-                        ));
-                    }
-                    None => ui.label("Bead output: (not created)"),
+                if let Some(summary) = report.bead.as_ref() {
+                    let output = summary
+                        .output_path
+                        .as_ref()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| "(not created)".to_string());
+                    ui.label(format!(
+                        "Bead output: {} (lines: {})",
+                        output, summary.data_lines
+                    ));
+                } else {
+                    ui.label("Bead output: (not created)");
                 }
 
-                match report.motor.as_ref() {
-                    Some(summary) => {
-                        let output = summary
-                            .output_path
-                            .as_ref()
-                            .map(|p| p.display().to_string())
-                            .unwrap_or_else(|| "(not created)".to_string());
-                        ui.label(format!(
-                            "Motor output: {} (lines: {})",
-                            output, summary.data_lines
-                        ));
-                    }
-                    None => ui.label("Motor output: (not created)"),
+                if let Some(summary) = report.motor.as_ref() {
+                    let output = summary
+                        .output_path
+                        .as_ref()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| "(not created)".to_string());
+                    ui.label(format!(
+                        "Motor output: {} (lines: {})",
+                        output, summary.data_lines
+                    ));
+                } else {
+                    ui.label("Motor output: (not created)");
                 }
 
                 let warnings = collect_warnings(report);
