@@ -1,4 +1,5 @@
 # MagMerge
+[![Download Latest](https://img.shields.io/badge/Download-Latest-2ea44f?style=for-the-badge)](dist/)
 
 MagMerge combines multiple `Bead Positions` and `Motor Positions` `.txt` files into two outputs.
 Drag a folder onto the GUI or use the CLI for batch runs.
