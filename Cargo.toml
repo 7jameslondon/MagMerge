@@ -8,7 +8,7 @@ name = "magmerge_cli"
 path = "src/bin/magmerge_cli.rs"
 
 [[bin]]
-name = "magmerge_gui"
+name = "MagMerge"
 path = "src/bin/magmerge_gui.rs"
 
 [dependencies]

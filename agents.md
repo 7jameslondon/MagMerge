@@ -42,12 +42,12 @@ Users drag a folder onto the GUI; a CLI is also available for automation/testing
 ## Build and Test
 - Tests: `cargo test`
 - CLI: `cargo run --bin magmerge_cli -- <folder>`
-- GUI: `cargo run --bin magmerge_gui`
+- GUI: `cargo run --bin MagMerge`
 
 ## Distribution
 - Release build: `cargo build --release`
 - Binaries copied to `dist/`:
-  - `dist/magmerge_gui.exe`
+  - `dist/MagMerge.exe`
   - `dist/magmerge_cli.exe`
 
 ## Windows EXE Icon (File Explorer)
