@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::thread;
 
 use eframe::egui;
-use magscope_file_combiner::{
+use magmerge::{
     collect_errors, collect_warnings, combine_folder_with_progress, CombineReport, ProgressUpdate,
 };
 
@@ -17,7 +17,7 @@ fn main() -> eframe::Result<()> {
     }
 
     eframe::run_native(
-        "MagScope File Combiner",
+        "MagMerge",
         options,
         Box::new(|_cc| Box::new(CombinerApp::default())),
     )
@@ -107,8 +107,8 @@ impl eframe::App for CombinerApp {
                     .map(|name| name.to_string_lossy().to_string())
                     .unwrap_or_else(|| update.current_file.display().to_string());
                 let label = match update.file_type {
-                    magscope_file_combiner::FileType::Bead => "Bead",
-                    magscope_file_combiner::FileType::Motor => "Motor",
+                    magmerge::FileType::Bead => "Bead",
+                    magmerge::FileType::Motor => "Motor",
                 };
                 self.current_file = Some(format!("{label}: {file_name}"));
                 self.status_message = Some(format!(
@@ -134,7 +134,7 @@ impl eframe::App for CombinerApp {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("MagScope File Combiner");
+            ui.heading("MagMerge");
             ui.label("Drop a folder here to combine Bead and Motor files.");
 
             if let Some(folder) = &self.folder {

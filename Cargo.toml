@@ -1,15 +1,15 @@
 [package]
-name = "magscope_file_combiner"
+name = "magmerge"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "magscope_cli"
-path = "src/bin/magscope_cli.rs"
+name = "magmerge_cli"
+path = "src/bin/magmerge_cli.rs"
 
 [[bin]]
-name = "magscope_gui"
-path = "src/bin/magscope_gui.rs"
+name = "magmerge_gui"
+path = "src/bin/magmerge_gui.rs"
 
 [dependencies]
 eframe = "0.27"

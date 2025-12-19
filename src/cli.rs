@@ -5,7 +5,7 @@ use crate::{collect_errors, collect_warnings, combine_folder, CombineReport, Gro
 
 pub fn run_cli(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     if args.len() != 2 {
-        let _ = writeln!(err, "Usage: magscope_cli <folder>");
+        let _ = writeln!(err, "Usage: magmerge_cli <folder>");
         return 2;
     }
 

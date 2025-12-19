@@ -1,4 +1,4 @@
-# MagScope File Combiner - Agent Notes
+# MagMerge - Agent Notes
 
 ## Overview
 Rust desktop app that combines multiple `.txt` files into two outputs:
@@ -27,28 +27,28 @@ Users drag a folder onto the GUI; a CLI is also available for automation/testing
 - Window/taskbar icon uses `assets/logo.png` at runtime.
 
 ## CLI
-- Binary: `magscope_cli`
-- Usage: `magscope_cli <folder>`
+- Binary: `magmerge_cli`
+- Usage: `magmerge_cli <folder>`
 - Prints summary, warnings, and errors.
 
 ## Project Structure
 - `src/lib.rs`: core discovery + combine logic, warnings/errors, progress reporting.
 - `src/cli.rs`: reusable CLI runner (used by binary and tests).
-- `src/bin/magscope_cli.rs`: thin wrapper around `cli::run_cli`.
-- `src/bin/magscope_gui.rs`: GUI app.
+- `src/bin/magmerge_cli.rs`: thin wrapper around `cli::run_cli`.
+- `src/bin/magmerge_gui.rs`: GUI app.
 - `assets/logo.png`: app logo (runtime + build-time icon).
 - `samples/`: sample input files for manual testing.
 
 ## Build and Test
 - Tests: `cargo test`
-- CLI: `cargo run --bin magscope_cli -- <folder>`
-- GUI: `cargo run --bin magscope_gui`
+- CLI: `cargo run --bin magmerge_cli -- <folder>`
+- GUI: `cargo run --bin magmerge_gui`
 
 ## Distribution
 - Release build: `cargo build --release`
 - Binaries copied to `dist/`:
-  - `dist/magscope_gui.exe`
-  - `dist/magscope_cli.exe`
+  - `dist/magmerge_gui.exe`
+  - `dist/magmerge_cli.exe`
 
 ## Windows EXE Icon (File Explorer)
 - `build.rs` generates a multi-size `.ico` from `assets/logo.png` and embeds it.

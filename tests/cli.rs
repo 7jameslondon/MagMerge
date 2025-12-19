@@ -20,12 +20,12 @@ fn cli_combines_files() {
     );
 
     let args = vec![
-        "magscope_cli".to_string(),
+        "magmerge_cli".to_string(),
         dir.path().to_string_lossy().to_string(),
     ];
     let mut stdout = Vec::new();
     let mut stderr = Vec::new();
-    let exit_code = magscope_file_combiner::cli::run_cli(&args, &mut stdout, &mut stderr);
+    let exit_code = magmerge::cli::run_cli(&args, &mut stdout, &mut stderr);
     assert_eq!(exit_code, 0);
     assert!(dir.path().join("Bead Positions Combined.txt").exists());
     assert!(dir.path().join("Motor Positions Combined.txt").exists());
@@ -39,12 +39,12 @@ fn cli_combines_files() {
 fn cli_reports_no_matching_files() {
     let dir = tempdir().expect("tempdir");
     let args = vec![
-        "magscope_cli".to_string(),
+        "magmerge_cli".to_string(),
         dir.path().to_string_lossy().to_string(),
     ];
     let mut stdout = Vec::new();
     let mut stderr = Vec::new();
-    let exit_code = magscope_file_combiner::cli::run_cli(&args, &mut stdout, &mut stderr);
+    let exit_code = magmerge::cli::run_cli(&args, &mut stdout, &mut stderr);
     assert_eq!(exit_code, 0);
     assert!(!dir.path().join("Bead Positions Combined.txt").exists());
     assert!(!dir.path().join("Motor Positions Combined.txt").exists());
