@@ -50,6 +50,10 @@ Users drag a folder onto the GUI; a CLI is also available for automation/testing
   - `dist/MagMerge.exe`
   - `dist/magmerge_cli.exe`
 
+## Automation
+- CI runs on Windows and executes `cargo test` and `cargo build --release`.
+- `justfile` provides optional shortcuts for `test`, `build`, and `dist`.
+
 ## Windows EXE Icon (File Explorer)
 - `build.rs` generates a multi-size `.ico` from `assets/logo.png` and embeds it.
 - Uses build deps: `image`, `ico`, `embed-resource`.

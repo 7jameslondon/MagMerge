@@ -3,5 +3,6 @@
 /Motor Positions *.txt
 /Bead Positions Combined.txt
 /Motor Positions Combined.txt
-/dist/
+/dist/*
+!/dist/README.md
 /samples/*.txt
