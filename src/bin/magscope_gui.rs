@@ -1,7 +1,13 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::path::PathBuf;
+use std::sync::mpsc;
+use std::thread;
 
 use eframe::egui;
-use magscope_file_combiner::{collect_errors, collect_warnings, combine_folder};
+use magscope_file_combiner::{
+    collect_errors, collect_warnings, combine_folder_with_progress, CombineReport, ProgressUpdate,
+};
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions::default();
@@ -13,10 +19,32 @@ fn main() -> eframe::Result<()> {
     )
 }
 
-#[derive(Default)]
 struct CombinerApp {
     folder: Option<PathBuf>,
-    report: Option<magscope_file_combiner::CombineReport>,
+    report: Option<CombineReport>,
+    status_message: Option<String>,
+    processing: bool,
+    processed_files: usize,
+    total_files: usize,
+    current_file: Option<String>,
+    progress_rx: Option<mpsc::Receiver<ProgressUpdate>>,
+    result_rx: Option<mpsc::Receiver<CombineReport>>,
+}
+
+impl Default for CombinerApp {
+    fn default() -> Self {
+        Self {
+            folder: None,
+            report: None,
+            status_message: None,
+            processing: false,
+            processed_files: 0,
+            total_files: 0,
+            current_file: None,
+            progress_rx: None,
+            result_rx: None,
+        }
+    }
 }
 
 impl eframe::App for CombinerApp {
@@ -31,9 +59,65 @@ impl eframe::App for CombinerApp {
                         path.parent().unwrap_or(&path).to_path_buf()
                     };
                     self.folder = Some(folder.clone());
-                    self.report = Some(combine_folder(&folder));
+                    self.report = None;
+                    self.status_message = Some(format!(
+                        "Folder received. Starting combine: {}",
+                        folder.display()
+                    ));
+                    self.processing = true;
+                    self.processed_files = 0;
+                    self.total_files = 0;
+                    self.current_file = None;
+
+                    let (progress_tx, progress_rx) = mpsc::channel();
+                    let (result_tx, result_rx) = mpsc::channel();
+                    self.progress_rx = Some(progress_rx);
+                    self.result_rx = Some(result_rx);
+
+                    thread::spawn(move || {
+                        let report = combine_folder_with_progress(&folder, |update| {
+                            let _ = progress_tx.send(update);
+                        });
+                        let _ = result_tx.send(report);
+                    });
                     break;
                 }
+            }
+        }
+
+        if let Some(rx) = &self.progress_rx {
+            while let Ok(update) = rx.try_recv() {
+                self.processed_files = update.processed_files;
+                self.total_files = update.total_files;
+                let file_name = update
+                    .current_file
+                    .file_name()
+                    .map(|name| name.to_string_lossy().to_string())
+                    .unwrap_or_else(|| update.current_file.display().to_string());
+                let label = match update.file_type {
+                    magscope_file_combiner::FileType::Bead => "Bead",
+                    magscope_file_combiner::FileType::Motor => "Motor",
+                };
+                self.current_file = Some(format!("{label}: {file_name}"));
+                self.status_message = Some(format!(
+                    "Processing file {}/{}",
+                    self.processed_files, self.total_files
+                ));
+            }
+        }
+
+        if let Some(rx) = &self.result_rx {
+            if let Ok(report) = rx.try_recv() {
+                self.processing = false;
+                self.progress_rx = None;
+                self.result_rx = None;
+                self.current_file = None;
+                if report.bead_files == 0 && report.motor_files == 0 {
+                    self.status_message = Some("No matching files found.".to_string());
+                } else {
+                    self.status_message = Some("Combine complete.".to_string());
+                }
+                self.report = Some(report);
             }
         }
 
@@ -43,6 +127,23 @@ impl eframe::App for CombinerApp {
 
             if let Some(folder) = &self.folder {
                 ui.label(format!("Folder: {}", folder.display()));
+            }
+
+            if let Some(message) = &self.status_message {
+                ui.label(message);
+            }
+
+            if self.processing && self.total_files > 0 {
+                let progress = self.processed_files as f32 / self.total_files as f32;
+                ui.add(
+                    egui::ProgressBar::new(progress).text(format!(
+                        "{}/{}",
+                        self.processed_files, self.total_files
+                    )),
+                );
+                if let Some(current) = &self.current_file {
+                    ui.label(format!("Processing: {}", current));
+                }
             }
 
             if let Some(report) = &self.report {
@@ -124,5 +225,9 @@ impl eframe::App for CombinerApp {
                 }
             }
         });
+
+        if self.processing {
+            ctx.request_repaint();
+        }
     }
 }

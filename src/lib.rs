@@ -5,6 +5,14 @@ use std::path::{Path, PathBuf};
 
 pub mod cli;
 
+#[derive(Debug, Clone)]
+pub struct ProgressUpdate {
+    pub processed_files: usize,
+    pub total_files: usize,
+    pub file_type: FileType,
+    pub current_file: PathBuf,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileType {
     Bead,
@@ -92,6 +100,13 @@ pub fn discover_files(folder: &Path) -> io::Result<DiscoveredFiles> {
 }
 
 pub fn combine_folder(folder: &Path) -> CombineReport {
+    combine_folder_with_progress(folder, |_| {})
+}
+
+pub fn combine_folder_with_progress<F>(folder: &Path, mut on_progress: F) -> CombineReport
+where
+    F: FnMut(ProgressUpdate),
+{
     let mut report = CombineReport {
         folder: folder.to_path_buf(),
         bead_files: 0,
@@ -114,22 +129,35 @@ pub fn combine_folder(folder: &Path) -> CombineReport {
 
     report.bead_files = discovered.bead_files.len();
     report.motor_files = discovered.motor_files.len();
+    let total_files = report.bead_files + report.motor_files;
+    let mut processed_files = 0usize;
+    let mut on_file_processed = |file_type: FileType, path: &PathBuf| {
+        processed_files += 1;
+        on_progress(ProgressUpdate {
+            processed_files,
+            total_files,
+            file_type,
+            current_file: path.clone(),
+        });
+    };
 
     if !discovered.bead_files.is_empty() {
         let output = folder.join(output_filename(FileType::Bead));
-        report.bead = Some(combine_group(
+        report.bead = Some(combine_group_with_progress(
             FileType::Bead,
             &discovered.bead_files,
             &output,
+            &mut on_file_processed,
         ));
     }
 
     if !discovered.motor_files.is_empty() {
         let output = folder.join(output_filename(FileType::Motor));
-        report.motor = Some(combine_group(
+        report.motor = Some(combine_group_with_progress(
             FileType::Motor,
             &discovered.motor_files,
             &output,
+            &mut on_file_processed,
         ));
     }
 
@@ -137,6 +165,18 @@ pub fn combine_folder(folder: &Path) -> CombineReport {
 }
 
 pub fn combine_group(file_type: FileType, files: &[PathBuf], output_path: &Path) -> GroupSummary {
+    combine_group_with_progress(file_type, files, output_path, &mut |_, _| {})
+}
+
+pub fn combine_group_with_progress<F>(
+    file_type: FileType,
+    files: &[PathBuf],
+    output_path: &Path,
+    on_file_processed: &mut F,
+) -> GroupSummary
+where
+    F: FnMut(FileType, &PathBuf),
+{
     let mut summary = GroupSummary {
         file_type,
         input_files: files.len(),
@@ -162,6 +202,7 @@ pub fn combine_group(file_type: FileType, files: &[PathBuf], output_path: &Path)
                     file: Some(path.clone()),
                     message: format!("Failed to read file: {err}"),
                 });
+                on_file_processed(file_type, path);
                 continue;
             }
         };
@@ -215,6 +256,8 @@ pub fn combine_group(file_type: FileType, files: &[PathBuf], output_path: &Path)
             }
             summary.data_lines += 1;
         }
+
+        on_file_processed(file_type, path);
     }
 
     summary
