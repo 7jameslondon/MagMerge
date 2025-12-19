@@ -5,6 +5,11 @@ use std::path::{Path, PathBuf};
 
 pub mod cli;
 
+const BEAD_PREFIX: &str = "Bead Positions";
+const MOTOR_PREFIX: &str = "Motor Positions";
+const BEAD_OUTPUT: &str = "Bead Positions Combined.txt";
+const MOTOR_OUTPUT: &str = "Motor Positions Combined.txt";
+
 #[derive(Debug, Clone)]
 pub enum ProgressEvent {
     Discovery {
@@ -85,15 +90,12 @@ where
             continue;
         }
 
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-        if ext != "txt" {
+        let ext = path.extension().and_then(|e| e.to_str());
+        if ext != Some("txt") {
             continue;
         }
 
-        let name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
         if is_combined_output(&name) {
             continue;
@@ -220,10 +222,12 @@ where
 
     let mut writer: Option<BufWriter<File>> = None;
     let mut header_ref: Option<Vec<u8>> = None;
+    let mut buffered_before_header: Vec<Vec<u8>> = Vec::new();
+    let mut saw_readable_file = false;
 
     for path in files {
-        let content = match read_file_content(path) {
-            Ok(content) => content,
+        let file = match File::open(path) {
+            Ok(file) => file,
             Err(err) => {
                 summary.errors.push(Error {
                     file: Some(path.clone()),
@@ -234,47 +238,77 @@ where
             }
         };
 
-        if writer.is_none() {
-            match File::create(output_path) {
-                Ok(file) => {
-                    writer = Some(BufWriter::new(file));
-                    summary.output_path = Some(output_path.to_path_buf());
-                }
+        let mut reader = BufReader::new(file);
+        let mut buffer = Vec::new();
+        let mut file_header: Option<Vec<u8>> = None;
+        let mut read_failed = false;
+
+        loop {
+            match read_next_line(&mut reader, &mut buffer) {
+                Ok(true) => {}
+                Ok(false) => break,
                 Err(err) => {
                     summary.errors.push(Error {
-                        file: Some(output_path.to_path_buf()),
-                        message: format!("Failed to create output: {err}"),
+                        file: Some(path.clone()),
+                        message: format!("Failed to read file: {err}"),
                     });
-                    return summary;
+                    read_failed = true;
+                    break;
                 }
             }
-        }
 
-        if header_ref.is_none() {
-            header_ref = content.header.clone();
-            summary.header = content.header.clone();
-            if let Some(ref header) = header_ref {
-                if let Err(err) = write_line(writer.as_mut().unwrap(), header) {
-                    summary.errors.push(Error {
-                        file: Some(output_path.to_path_buf()),
-                        message: format!("Failed to write output: {err}"),
+            if is_whitespace_line(&buffer) {
+                continue;
+            }
+
+            if file_header.is_none() && starts_with_hash(&buffer) {
+                file_header = Some(buffer.clone());
+                let writer = match ensure_output_writer(&mut writer, output_path, &mut summary) {
+                    Some(writer) => writer,
+                    None => return summary,
+                };
+
+                if header_ref.is_none() {
+                    header_ref = file_header.clone();
+                    summary.header = file_header.clone();
+                    if let Some(ref header) = header_ref {
+                        if let Err(err) = write_line(writer, header) {
+                            summary.errors.push(Error {
+                                file: Some(output_path.to_path_buf()),
+                                message: format!("Failed to write output: {err}"),
+                            });
+                            return summary;
+                        }
+                    }
+                    for line in buffered_before_header.drain(..) {
+                        if let Err(err) = write_line(writer, &line) {
+                            summary.errors.push(Error {
+                                file: Some(output_path.to_path_buf()),
+                                message: format!("Failed to write output: {err}"),
+                            });
+                            return summary;
+                        }
+                        summary.data_lines += 1;
+                    }
+                } else if header_ref.as_ref() != file_header.as_ref() {
+                    summary.warnings.push(Warning {
+                        file: path.clone(),
+                        message: "Header mismatch".to_string(),
                     });
-                    return summary;
                 }
+                continue;
             }
-        }
 
-        if let (Some(ref header), Some(ref file_header)) = (&header_ref, &content.header) {
-            if file_header != header {
-                summary.warnings.push(Warning {
-                    file: path.clone(),
-                    message: "Header mismatch".to_string(),
-                });
+            if header_ref.is_none() {
+                buffered_before_header.push(buffer.clone());
+                continue;
             }
-        }
 
-        for line in content.data_lines {
-            if let Err(err) = write_line(writer.as_mut().unwrap(), &line) {
+            let writer = match ensure_output_writer(&mut writer, output_path, &mut summary) {
+                Some(writer) => writer,
+                None => return summary,
+            };
+            if let Err(err) = write_line(writer, &buffer) {
                 summary.errors.push(Error {
                     file: Some(output_path.to_path_buf()),
                     message: format!("Failed to write output: {err}"),
@@ -284,7 +318,36 @@ where
             summary.data_lines += 1;
         }
 
+        if read_failed {
+            on_file_processed(file_type, path);
+            continue;
+        }
+
+        saw_readable_file = true;
         on_file_processed(file_type, path);
+    }
+
+    if header_ref.is_none() && !buffered_before_header.is_empty() {
+        let writer = match ensure_output_writer(&mut writer, output_path, &mut summary) {
+            Some(writer) => writer,
+            None => return summary,
+        };
+        for line in buffered_before_header.drain(..) {
+            if let Err(err) = write_line(writer, &line) {
+                summary.errors.push(Error {
+                    file: Some(output_path.to_path_buf()),
+                    message: format!("Failed to write output: {err}"),
+                });
+                return summary;
+            }
+            summary.data_lines += 1;
+        }
+    }
+
+    if writer.is_none() && saw_readable_file {
+        if ensure_output_writer(&mut writer, output_path, &mut summary).is_none() {
+            return summary;
+        }
     }
 
     summary
@@ -292,8 +355,22 @@ where
 
 pub fn output_filename(file_type: FileType) -> &'static str {
     match file_type {
-        FileType::Bead => "Bead Positions Combined.txt",
-        FileType::Motor => "Motor Positions Combined.txt",
+        FileType::Bead => BEAD_OUTPUT,
+        FileType::Motor => MOTOR_OUTPUT,
+    }
+}
+
+pub fn format_group_output(summary: Option<&GroupSummary>, label: &str) -> String {
+    match summary {
+        Some(summary) => {
+            let output = summary
+                .output_path
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "(not created)".to_string());
+            format!("{label} output: {output} (lines: {})", summary.data_lines)
+        }
+        None => format!("{label} output: (not created)"),
     }
 }
 
@@ -320,9 +397,9 @@ pub fn collect_errors(report: &CombineReport) -> Vec<Error> {
 }
 
 fn classify_name(name: &str) -> Option<FileType> {
-    if name.starts_with("Bead Positions") {
+    if name.starts_with(BEAD_PREFIX) {
         Some(FileType::Bead)
-    } else if name.starts_with("Motor Positions") {
+    } else if name.starts_with(MOTOR_PREFIX) {
         Some(FileType::Motor)
     } else {
         None
@@ -330,63 +407,62 @@ fn classify_name(name: &str) -> Option<FileType> {
 }
 
 fn is_combined_output(name: &str) -> bool {
-    name == "Bead Positions Combined.txt" || name == "Motor Positions Combined.txt"
+    name == BEAD_OUTPUT || name == MOTOR_OUTPUT
 }
 
 fn sort_paths(paths: &mut Vec<PathBuf>) {
-    paths.sort_by_key(|path| file_name_key(path));
+    paths.sort_by(|a, b| file_name_key(a).cmp(file_name_key(b)));
 }
 
-fn file_name_key(path: &Path) -> String {
-    path.file_name()
-        .map(|name| name.to_string_lossy().to_string())
-        .unwrap_or_default()
+fn file_name_key(path: &Path) -> &str {
+    path.file_name().and_then(|name| name.to_str()).unwrap_or("")
 }
 
-struct FileContent {
-    header: Option<Vec<u8>>,
-    data_lines: Vec<Vec<u8>>,
-}
-
-fn read_file_content(path: &Path) -> io::Result<FileContent> {
-    let file = File::open(path)?;
-    let mut reader = BufReader::new(file);
-    let mut buffer = Vec::new();
-    let mut header: Option<Vec<u8>> = None;
-    let mut data_lines = Vec::new();
-
-    loop {
-        buffer.clear();
-        let bytes_read = reader.read_until(b'\n', &mut buffer)?;
-        if bytes_read == 0 {
-            break;
-        }
-
-        if buffer.ends_with(&[b'\n']) {
-            buffer.pop();
-            if buffer.ends_with(&[b'\r']) {
-                buffer.pop();
+fn ensure_output_writer<'a>(
+    writer: &'a mut Option<BufWriter<File>>,
+    output_path: &Path,
+    summary: &mut GroupSummary,
+) -> Option<&'a mut BufWriter<File>> {
+    if writer.is_none() {
+        match File::create(output_path) {
+            Ok(file) => {
+                *writer = Some(BufWriter::new(file));
+                summary.output_path = Some(output_path.to_path_buf());
             }
-        } else if buffer.ends_with(&[b'\r']) {
-            buffer.pop();
+            Err(err) => {
+                summary.errors.push(Error {
+                    file: Some(output_path.to_path_buf()),
+                    message: format!("Failed to create output: {err}"),
+                });
+                return None;
+            }
         }
-
-        if is_whitespace_line(&buffer) {
-            continue;
-        }
-
-        if header.is_none() && starts_with_hash(&buffer) {
-            header = Some(buffer.clone());
-            continue;
-        }
-
-        data_lines.push(buffer.clone());
     }
-
-    Ok(FileContent { header, data_lines })
+    writer.as_mut()
 }
 
-fn write_line(writer: &mut BufWriter<File>, line: &[u8]) -> io::Result<()> {
+fn read_next_line<R: BufRead>(reader: &mut R, buffer: &mut Vec<u8>) -> io::Result<bool> {
+    buffer.clear();
+    let bytes_read = reader.read_until(b'\n', buffer)?;
+    if bytes_read == 0 {
+        return Ok(false);
+    }
+    trim_line_end(buffer);
+    Ok(true)
+}
+
+fn trim_line_end(buffer: &mut Vec<u8>) {
+    if buffer.ends_with(&[b'\n']) {
+        buffer.pop();
+        if buffer.ends_with(&[b'\r']) {
+            buffer.pop();
+        }
+    } else if buffer.ends_with(&[b'\r']) {
+        buffer.pop();
+    }
+}
+
+fn write_line<W: Write>(writer: &mut W, line: &[u8]) -> io::Result<()> {
     writer.write_all(line)?;
     writer.write_all(b"\n")?;
     Ok(())

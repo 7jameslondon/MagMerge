@@ -1,8 +1,4 @@
 /target/
-/Bead Positions *.txt
-/Motor Positions *.txt
-/Bead Positions Combined.txt
-/Motor Positions Combined.txt
 /dist/*
 !/dist/README.md
 /samples/*.txt

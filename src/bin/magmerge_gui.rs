@@ -7,7 +7,8 @@ use std::thread;
 
 use eframe::egui;
 use magmerge::{
-    collect_errors, collect_warnings, combine_folder_with_progress, CombineReport, ProgressEvent,
+    collect_errors, collect_warnings, combine_folder_with_progress, format_group_output,
+    CombineReport, ProgressEvent,
 };
 
 fn main() -> eframe::Result<()> {
@@ -205,33 +206,8 @@ impl eframe::App for CombinerApp {
                     ui.label("No matching files found.");
                 }
 
-                if let Some(summary) = report.bead.as_ref() {
-                    let output = summary
-                        .output_path
-                        .as_ref()
-                        .map(|p| p.display().to_string())
-                        .unwrap_or_else(|| "(not created)".to_string());
-                    ui.label(format!(
-                        "Bead output: {} (lines: {})",
-                        output, summary.data_lines
-                    ));
-                } else {
-                    ui.label("Bead output: (not created)");
-                }
-
-                if let Some(summary) = report.motor.as_ref() {
-                    let output = summary
-                        .output_path
-                        .as_ref()
-                        .map(|p| p.display().to_string())
-                        .unwrap_or_else(|| "(not created)".to_string());
-                    ui.label(format!(
-                        "Motor output: {} (lines: {})",
-                        output, summary.data_lines
-                    ));
-                } else {
-                    ui.label("Motor output: (not created)");
-                }
+                ui.label(format_group_output(report.bead.as_ref(), "Bead"));
+                ui.label(format_group_output(report.motor.as_ref(), "Motor"));
 
                 let warnings = collect_warnings(report);
                 let errors = collect_errors(report);

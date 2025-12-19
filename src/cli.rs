@@ -1,7 +1,9 @@
 use std::io::Write;
 use std::path::PathBuf;
 
-use crate::{collect_errors, collect_warnings, combine_folder, CombineReport, GroupSummary};
+use crate::{
+    collect_errors, collect_warnings, combine_folder, format_group_output, CombineReport,
+};
 
 pub fn run_cli(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     if args.len() != 2 {
@@ -30,17 +32,8 @@ fn print_report(report: &CombineReport, out: &mut dyn Write) {
         return;
     }
 
-    if let Some(summary) = report.bead.as_ref() {
-        print_group(summary, "Bead", out);
-    } else {
-        let _ = writeln!(out, "Bead output: (not created)");
-    }
-
-    if let Some(summary) = report.motor.as_ref() {
-        print_group(summary, "Motor", out);
-    } else {
-        let _ = writeln!(out, "Motor output: (not created)");
-    }
+    let _ = writeln!(out, "{}", format_group_output(report.bead.as_ref(), "Bead"));
+    let _ = writeln!(out, "{}", format_group_output(report.motor.as_ref(), "Motor"));
 
     let warnings = collect_warnings(report);
     if !warnings.is_empty() {
@@ -61,18 +54,4 @@ fn print_report(report: &CombineReport, out: &mut dyn Write) {
             }
         }
     }
-}
-
-fn print_group(summary: &GroupSummary, label: &str, out: &mut dyn Write) {
-    let output = summary
-        .output_path
-        .as_ref()
-        .map(|p| p.display().to_string())
-        .unwrap_or_else(|| "(not created)".to_string());
-
-    let _ = writeln!(
-        out,
-        "{} output: {} (lines: {})",
-        label, output, summary.data_lines
-    );
 }
