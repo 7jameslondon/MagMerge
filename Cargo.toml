@@ -1,0 +1,18 @@
+[package]
+name = "magscope_file_combiner"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "magscope_cli"
+path = "src/bin/magscope_cli.rs"
+
+[[bin]]
+name = "magscope_gui"
+path = "src/bin/magscope_gui.rs"
+
+[dependencies]
+eframe = "0.27"
+
+[dev-dependencies]
+tempfile = "3"
